@@ -41,11 +41,45 @@ struct DynamicCamera {
         // collect statistics on the player position and velocity in (normalized, if you like)
         // window coordinates. Compute lookAhead distance in world coords, adjusting for
         // if the player is moving left or right.
+
+        sf::Vector2f trackedPosWorldWindow = camera.worldToWindowPercent(trackedPosWorld);
+        trackedPosWorldWindow.x +=camera.worldToWindowPercentDist({lookaheadState, 0.f}).x; //debugged with ChatGPT
+        sf::Vector2f trackedVelocityWindow = camera.worldToWindowPercentDist(trackedVelocityWorld);
+
+        
         // Now update lookAhead state using an EMA over its previous state and the lookAhead world
-        // vector. Then determine if the player is in the dead zone, soft rejection zone, or hard
+        // vector. 
+        
+        float lookAheadDist = camera.windowPercentToWorldDist({lookAhead, 0.f}).x;
+            
+        if(trackedVelocityWorld.x<0.f){
+            lookAheadDist = -lookAheadDist;
+        }else if(trackedVelocityWorld.x == 0.f){
+            lookAheadDist = 0;
+        }
+        lookaheadState = lookaheadState + alpha*(lookAheadDist - lookaheadState);
+        
+        
+        //Then determine if the player is in the dead zone, soft rejection zone, or hard
         // rejection zone. For each, perform EMA on the delta of the camera displacement (ignoring
         // lookahead) appropriately. Next,
+        float cameraChange = 0;
+        if (trackedPosWorldWindow.x < softZoneX.min){
+            cameraChange = trackedPosWorldWindow.x-softZoneX.min;
+        }else if(trackedPosWorldWindow.x <deadZoneX.min){
+            cameraChange = alpha*(trackedPosWorldWindow.x-deadZoneX.min);
+        }else if(trackedPosWorldWindow.x > softZoneX.max){
+            cameraChange = trackedPosWorldWindow.x-softZoneX.max;
+        }else if(trackedPosWorldWindow.x > deadZoneX.max){
+            cameraChange = alpha*(trackedPosWorldWindow.x-deadZoneX.max);
+        }
+        
         // set the camera center by offsetting the cameraUnadjustedCenter, combining lookAhead.
+        float cameraChangeWorld = camera.windowPercentToWorldDist({cameraChange, 0.f}).x;
+        cameraUnadjustedCenter.x += cameraChangeWorld;
+        camera.setCameraCenter({cameraUnadjustedCenter.x+lookaheadState, cameraUnadjustedCenter.y});
+
+        
         // Finally update cameraUnadjustedCenter, but without lookahead.
     }
 
